@@ -44,7 +44,10 @@ public class Animal : MonoBehaviour
         switch (act)
         {
             case State.SearchFood:
-                FindFood();
+                if(FindFood())
+                {
+                    MoveAnimal();
+                }
                 break;
 
             case State.SearchWater:
@@ -61,8 +64,9 @@ public class Animal : MonoBehaviour
         }
         Ray ray = new Ray(transform.position, (_targetTile.worldPosition - transform.position).normalized);
         Debug.DrawLine(ray.origin, ray.origin + ray.direction * Vector3.Distance(transform.position, _targetTile.worldPosition), Color.red);
-        
-        MoveAnimal();
+
+        if (!mover.GetPathSet())
+            MoveAnimal();
         Debug.Log(_targetTile.worldPosition);
     }
 
@@ -84,11 +88,10 @@ public class Animal : MonoBehaviour
 
     private void MoveAnimal()
     {
-        if (!mover.GetPathSet())
-            mover.SetPathToTarget(_targetTile);
+        mover.SetPathToTarget(_targetTile);
     }
 
-    public void FindFood()
+    public bool FindFood()
     {
         if (food == null)
         {
@@ -97,13 +100,14 @@ public class Animal : MonoBehaviour
                 _targetTile = Tile.GetTileAt(ChooseNextRandomTarget());
         }
 
-        if(food != null)
+        if (food != null)
         {
             food.OnFocused(this);
             _targetTile = Tile.GetTileAt(food.transform.position);
-            Debug.Log("original: " + food.transform.position);
-            Debug.Log("tile: " + _targetTile.worldPosition);
+            return true;
         }
+
+        return false;
     }
 
     public Edible CheckFoodNearby()

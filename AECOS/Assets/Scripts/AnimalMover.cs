@@ -63,6 +63,9 @@ public class AnimalMover : MonoBehaviour
 
     public void SetPathToTarget(Tile targetTile)
     {
+        if (_isTransitioning)
+            return;
+
         _path.Clear();
         Vector3 start = transform.position;
         Vector3 target = targetTile.worldPosition;
@@ -89,15 +92,5 @@ public class AnimalMover : MonoBehaviour
     {
         return isSetPath;
     }
-    
 
-
-    /*IEnumerator ExampleCoroutine()
-    {
-        isSetPath = false;
-        _path.Clear();
-        isStop = false;
-        yield return new WaitForSeconds(1);
-        isStop = true;
-    }*/
 }
