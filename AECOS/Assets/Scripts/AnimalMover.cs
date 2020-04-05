@@ -63,10 +63,9 @@ public class AnimalMover : MonoBehaviour
 
     public void SetPathToTarget(Tile targetTile)
     {
-        if (_isTransitioning)
-            return;
 
         _path.Clear();
+
         Vector3 start = transform.position;
         Vector3 target = targetTile.worldPosition;
         Vector3 direction = (target - start).normalized;
