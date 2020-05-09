@@ -6,21 +6,31 @@ using UnityEngine;
 
 public class Environment : MonoBehaviour
 {
+    public GameObject grassPrefab;
+    public GameObject animalPrefab;
+
     public static int size_x = 50;
     public static int size_z = 50;
 
     public float timer = 0f;
     private bool isMeshBuilt = false;
+    public float numGrass = 20f;
 
+    
     private TileMap tileMap;
     private static TileMapData mapData;
 
     private static Tile[] map;
     private static Dictionary<Tile, List<Tile>> walkableNeighborsMap;
 
+    public static List<Edible> edibles;
+    private static List<Animal> animals;
+
     private static System.Random random;
     void Start()
     {
+        animals = new List<Animal>();
+        edibles = new List<Edible>();
         tileMap = GetComponent<TileMap>();
         walkableNeighborsMap = new Dictionary<Tile, List<Tile>>();
     }
@@ -34,11 +44,11 @@ public class Environment : MonoBehaviour
         {
             isMeshBuilt = true;
             mapData = tileMap.BuildMesh();
-            Init();
+            Init(mapData);
         }
     }
 
-    void Init()
+    void Init(TileMapData map_data)
     {
         random = new System.Random();
         map = new Tile[size_x * size_z];
@@ -46,55 +56,78 @@ public class Environment : MonoBehaviour
         {
             for (int j = 0; j < size_z; j++)
             {
-                map[i * size_x + j] = Tile.GetTileAt(new Vector3(i, 0, -j));    //multiplied by tilesize
-            }
-        }
-
-        for (int i = 0; i < size_x; i++)
-        {
-            for (int j = 0; j < size_z; j++)
-            {
+                map[i * size_x + j] = Tile.GetTileAt(new Vector3(i, 0, j), map_data.GetTileType(i, j));    //multiplied by tilesize
                 walkableNeighborsMap.Add(map[i * size_x + j], GetWalkableNeighbors(map[i * size_x + j]));
             }
         }
 
-        List<Tile> noder = new List<Tile>();
+        SpawnGrassRandomly();
+    }
 
-        noder = walkableNeighborsMap[map[2322]];
-        Debug.Log("tile: " + map[2322].tilePosition);
-        foreach (Tile nay in noder)
+    private void SpawnGrassRandomly()
+    {
+        for (int i = 0; i < 100; i++)
         {
-            Debug.Log("one of neighbors: " + nay.tilePosition);
+            Vector3 randomPosition = new Vector3(Random.Range(0, size_x) + 0.5f, 0, Random.Range(0, size_z) + 0.5f);
+            foreach (Tile tile in map)
+            {
+                if (tile == Tile.GetTileAt(randomPosition) && tile.type != 0 && tile.type != 2)
+                {
+                    GameObject go = Instantiate(grassPrefab, randomPosition, Quaternion.identity);
+                    edibles.Add(go.GetComponent<Edible>());
+                }
+            }
         }
     }
-    public void SpawnGrassRandomly()
+
+    public static Edible GetNearbyGrass(Tile tile, float maxDistance) //returns invalid if grass isn't nearby
     {
-        
+        float minDistance = maxDistance;
+        Edible closetGrass = null;
+        foreach(var edible in edibles)
+        {
+            float tileDist = Tile.Distance(tile, Tile.GetTileAt(edible.transform.position));
+
+            if (tileDist <= maxDistance)
+            {
+                if(minDistance >= tileDist)
+                {
+                    minDistance = tileDist;
+                    closetGrass = edible;
+                }
+            }
+        }
+        return closetGrass;
     }
 
-    public List<Tile> GetWalkableNeighbors(Tile tile)   //Walk to desired food/water through checking act
+    public static void DeathGrass(Edible grass)
+    {
+        edibles.Remove(grass);
+        Destroy(grass.gameObject);
+    }
+
+    private List<Tile> GetWalkableNeighbors(Tile tile)
     {
         List<Tile> walkableNeighbors = new List<Tile>();
 
         if (tile.tilePosition.x + 1 < size_x)
         {
-            if (mapData.GetTileType((int)tile.tilePosition.x + 1, -(int)tile.tilePosition.y + 0) == 1 || mapData.GetTileType((int)tile.tilePosition.x + 1, -(int)tile.tilePosition.y + 0) == 2)
+            if (mapData.GetTileType((int)tile.tilePosition.x + 1, (int)tile.tilePosition.y + 0) == 1 || mapData.GetTileType((int)tile.tilePosition.x + 1, (int)tile.tilePosition.y + 0) == 2)
             {
                 walkableNeighbors.Add(Tile.GetTileAt(new Vector3(tile.tilePosition.x + 1, 0, tile.tilePosition.y + 0)));
-                //Debug.Log(tile.tilePosition.y);
             }
         }
 
-        if (-tile.tilePosition.y + 1 < size_z)
+        if (tile.tilePosition.y + 1 < size_z)
         {
-            if (mapData.GetTileType((int)tile.tilePosition.x + 0, -(int)tile.tilePosition.y + 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x + 0, -(int)tile.tilePosition.y + 1) == 2)
+            if (mapData.GetTileType((int)tile.tilePosition.x + 0, (int)tile.tilePosition.y + 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x + 0, (int)tile.tilePosition.y + 1) == 2)
             {
                 walkableNeighbors.Add(Tile.GetTileAt(new Vector3(tile.tilePosition.x + 0, 0, tile.tilePosition.y + 1)));
             }
         }
-        if (-tile.tilePosition.y + 1 < size_z && tile.tilePosition.x + 1 < size_x)
+        if (tile.tilePosition.y + 1 < size_z && tile.tilePosition.x + 1 < size_x)
         {
-            if (mapData.GetTileType((int)tile.tilePosition.x + 1, -(int)tile.tilePosition.y + 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x + 1, -(int)tile.tilePosition.y + 1) == 2)
+            if (mapData.GetTileType((int)tile.tilePosition.x + 1, (int)tile.tilePosition.y + 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x + 1, (int)tile.tilePosition.y + 1) == 2)
             {
                 walkableNeighbors.Add(Tile.GetTileAt(new Vector3(tile.tilePosition.x + 1, 0, tile.tilePosition.y + 1)));
             }
@@ -103,39 +136,39 @@ public class Environment : MonoBehaviour
         
         if (tile.tilePosition.x - 1 > 0)
         {
-            if (mapData.GetTileType((int)tile.tilePosition.x - 1, -(int)tile.tilePosition.y + 0) == 1 || mapData.GetTileType((int)tile.tilePosition.x - 1, -(int)tile.tilePosition.y + 0) == 2)
+            if (mapData.GetTileType((int)tile.tilePosition.x - 1, (int)tile.tilePosition.y + 0) == 1 || mapData.GetTileType((int)tile.tilePosition.x - 1, (int)tile.tilePosition.y + 0) == 2)
             {
                 walkableNeighbors.Add(Tile.GetTileAt(new Vector3(tile.tilePosition.x - 1, 0, tile.tilePosition.y + 0)));
             }
         }
         
-        if (-tile.tilePosition.y - 1 > 0)
+        if (tile.tilePosition.y - 1 > 0)
         {
-            if (mapData.GetTileType((int)tile.tilePosition.x + 0, -(int)tile.tilePosition.y - 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x + 0, -(int)tile.tilePosition.y - 1) == 2)
+            if (mapData.GetTileType((int)tile.tilePosition.x + 0, (int)tile.tilePosition.y - 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x + 0, (int)tile.tilePosition.y - 1) == 2)
             {
                 walkableNeighbors.Add(Tile.GetTileAt(new Vector3(tile.tilePosition.x + 0, 0, tile.tilePosition.y - 1)));
             }
         }
         
-        if (-tile.tilePosition.y - 1 > 0 && tile.tilePosition.x - 1 > 0)
+        if (tile.tilePosition.y - 1 > 0 && tile.tilePosition.x - 1 > 0)
         {
-            if (mapData.GetTileType((int)tile.tilePosition.x - 1, -(int)tile.tilePosition.y - 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x - 1, -(int)tile.tilePosition.y - 1) == 2)
+            if (mapData.GetTileType((int)tile.tilePosition.x - 1, (int)tile.tilePosition.y - 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x - 1, (int)tile.tilePosition.y - 1) == 2)
             {
                 walkableNeighbors.Add(Tile.GetTileAt(new Vector3(tile.tilePosition.x - 1, 0, tile.tilePosition.y - 1)));
             }
         }
 
-        if (-tile.tilePosition.y - 1 > 0 && tile.tilePosition.x + 1 < size_x)
+        if (tile.tilePosition.y - 1 > 0 && tile.tilePosition.x + 1 < size_x)
         {
-            if(mapData.GetTileType((int)tile.tilePosition.x + 1, (int)-tile.tilePosition.y - 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x + 1, (int)-tile.tilePosition.y - 1) == 2)
+            if(mapData.GetTileType((int)tile.tilePosition.x + 1, (int)tile.tilePosition.y - 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x + 1, (int)tile.tilePosition.y - 1) == 2)
             {
                 walkableNeighbors.Add(Tile.GetTileAt(new Vector3(tile.tilePosition.x + 1, 0, tile.tilePosition.y - 1)));
             }
         }
 
-        if (-tile.tilePosition.y + 1 < size_z && tile.tilePosition.x - 1 > 0)
+        if (tile.tilePosition.y + 1 < size_z && tile.tilePosition.x - 1 > 0)
         {
-            if (mapData.GetTileType((int)tile.tilePosition.x - 1, (int)-tile.tilePosition.y + 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x - 1, (int)-tile.tilePosition.y + 1) == 2)
+            if (mapData.GetTileType((int)tile.tilePosition.x - 1, (int)tile.tilePosition.y + 1) == 1 || mapData.GetTileType((int)tile.tilePosition.x - 1, (int)tile.tilePosition.y + 1) == 2)
             {
                 walkableNeighbors.Add(Tile.GetTileAt(new Vector3(tile.tilePosition.x - 1, 0, tile.tilePosition.y + 1)));
             }
@@ -144,23 +177,39 @@ public class Environment : MonoBehaviour
         return walkableNeighbors;
     }
 
-    public static Tile GetNextRandomTile(Animal animal)
+    public static Tile GetNextRandomTile(Tile currentTile)
     {
         foreach(Tile tile in map)
         {
-            if(tile == animal.currentTile)
+            if(tile == currentTile)
             {
-                Debug.Log(tile.tilePosition);
                 List<Tile> neighbors = walkableNeighborsMap[tile];
                 return neighbors[random.Next(neighbors.Count)];
             }
         }
-        //List<Tile> neighbors = walkableNeighborsMap[animal.currentTile];
-        /*if(!neighbors.Any())
-        {
-            Debug.Log("ERROR");
-        }*/
         return null;
+    }
+
+    //returns invalid if water tile wasn't found
+    public static Tile FindClosesetVisibleWater(Tile tile, float maxDistance)
+    {
+        float minDistance = maxDistance;
+        Tile newTile = Tile.Invalid();
+        
+        foreach(Tile tileIter in map)
+        {
+            float tileDistance = Tile.Distance(tile, tileIter);
+            if (tileIter.type == 0 && tileDistance <= maxDistance)
+            {
+                if(minDistance >= tileDistance)
+                {
+                    minDistance = tileDistance;
+                    newTile = tileIter;
+                }
+            }
+        }
+
+        return newTile;
     }
 
 }

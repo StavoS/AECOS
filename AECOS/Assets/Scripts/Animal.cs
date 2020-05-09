@@ -13,19 +13,30 @@ public class Animal : MonoBehaviour
 {
     public float sensorDistance = 10f;
 
-    public float health = 100f;
+    public float timeDeathByStarve = 100f;
+    public float timeDeathByThirst = 100f;
+
     public float thirst = 0f;
-    public float reproductivity = 0f;
-    public float starve = 20f;
+    public float starve = 0f;
 
     public State act;
+
+    public Tile currentTile;
     private Tile _targetTile;
+
     public AnimalMover mover;
     public LayerMask areaMask;
-    private Collider[] _hitColliders;
+    public float timer = 0f;
 
+    private const float consumeDuration = 10f;
+    private const float drinkConsume = 5f;
+    
     public Edible food;
-    private bool _foodFound;
+    public Tile waterTile = Tile.Invalid();
+
+    
+    public bool isInteracting = false;
+
     void Start()
     {
         mover = GetComponent<AnimalMover>();
@@ -33,10 +44,27 @@ public class Animal : MonoBehaviour
 
     void Update()
     {
-        _hitColliders = Physics.OverlapSphere(transform.position, sensorDistance, areaMask);
-        //Debug.Log(_hitColliders.Length);
-        ChooseNextAct();
+        timer += Time.deltaTime;
+        if (timer < 5f)
+            return;
+
+        currentTile = Tile.GetTileAt(transform.position);
+        starve += Time.deltaTime * 1 / timeDeathByStarve;
+        thirst += Time.deltaTime * 1 / timeDeathByThirst;
+        
+        if(!isInteracting)
+            ChooseNextAct();
+
         DoAct();
+        
+        if(starve >= 1f)
+        {
+            Debug.Log("Died of starvation");
+        }
+        else if(thirst >= 1f)
+        {
+            Debug.Log("Died of thirst");
+        }
     }
 
     public void DoAct()
@@ -46,12 +74,21 @@ public class Animal : MonoBehaviour
             case State.SearchFood:
                 if(FindFood())
                 {
-                    MoveAnimal();
+                    MoveAnimal(true);
+                    return;
                 }
+                _targetTile = Environment.GetNextRandomTile(currentTile);
+                MoveAnimal(false);
                 break;
 
             case State.SearchWater:
-                Debug.Log("WATER");
+                if(FindWater())
+                {
+                    MoveAnimal(true);
+                    return;
+                }
+                _targetTile = Environment.GetNextRandomTile(currentTile);
+                MoveAnimal(false);
                 break;
 
             case State.SearchMate:
@@ -62,12 +99,7 @@ public class Animal : MonoBehaviour
                 Debug.Log("Dead");
                 break;
         }
-        Ray ray = new Ray(transform.position, (_targetTile.worldPosition - transform.position).normalized);
-        Debug.DrawLine(ray.origin, ray.origin + ray.direction * Vector3.Distance(transform.position, _targetTile.worldPosition), Color.red);
 
-        if (!mover.GetPathSet())
-            MoveAnimal();
-        Debug.Log(_targetTile.worldPosition);
     }
 
     public void ChooseNextAct()
@@ -80,47 +112,78 @@ public class Animal : MonoBehaviour
         act = State.SearchWater;
     }
 
-    public Vector3 ChooseNextRandomTarget()
-    {
-        Vector3 nextPos = transform.position + new Vector3(Random.Range(-sensorDistance, sensorDistance), 0f, Random.Range(-sensorDistance, sensorDistance));
-        return nextPos;
-    }
 
-    private void MoveAnimal()
+    private void MoveAnimal(bool stopBeforeTarget)
     {
-        mover.SetPathToTarget(_targetTile);
+        if (!mover.GetPathSet() && !mover.stopBeforeTarget)
+            mover.SetPathToTarget(_targetTile, stopBeforeTarget);
     }
 
     public bool FindFood()
     {
         if (food == null)
         {
-            food = CheckFoodNearby();
-            if (!mover.GetPathSet())
-                _targetTile = Tile.GetTileAt(ChooseNextRandomTarget());
+            isInteracting = false;
+            food = Environment.GetNearbyGrass(currentTile, sensorDistance);
+            
+            _targetTile = Environment.GetNextRandomTile(currentTile);
+           
         }
 
         if (food != null)
         {
-            food.OnFocused(this);
+            if(food.OnFocused(this))
+            {
+                isInteracting = true;
+                float amount = Mathf.Min(starve, Time.deltaTime * 1f / consumeDuration);
+                amount = food.Eat(amount);
+                starve -= amount;
+                if(starve <= 0 || food.remaining <= 0)
+                {
+                    isInteracting = false;
+                    food = null;
+                    return false;
+                }
+            }
+
             _targetTile = Tile.GetTileAt(food.transform.position);
+
             return true;
         }
 
         return false;
     }
 
-    public Edible CheckFoodNearby()
+    public bool FindWater()
     {
-        foreach (Collider col in _hitColliders)
+        if (waterTile == Tile.Invalid())
         {
-            if (col.gameObject.CompareTag("Edible"))
-            {
-                return col.gameObject.GetComponent<Edible>();
-            }
+            waterTile = Environment.FindClosesetVisibleWater(currentTile, sensorDistance);
         }
 
-        return null;
+        if(waterTile != Tile.Invalid())
+        {
+
+            if(Tile.Distance(waterTile, currentTile) <= 1.5f)
+            {
+                isInteracting = true;
+                float amount = Mathf.Min(thirst, Time.deltaTime * 1f / drinkConsume);
+                thirst -= amount;
+                if(thirst <= 0)
+                {
+                    isInteracting = false;
+                    return false;
+                }
+                return true;
+            }
+            if(!isInteracting)
+                _targetTile = waterTile;
+
+            return true;
+        }
+
+        _targetTile = Environment.GetNextRandomTile(currentTile);
+        return false;
     }
 
 }

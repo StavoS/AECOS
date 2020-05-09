@@ -12,10 +12,11 @@ public class AnimalMover : MonoBehaviour
 
     private Queue<Tile> _path;
     private Tile _location;
+    private Tile _targetInteract;
 
     private bool _isTransitioning;
     private bool isSetPath = false;
-    private bool isStop = true;
+    public bool stopBeforeTarget = false;
 
     void Start()
     {
@@ -24,18 +25,17 @@ public class AnimalMover : MonoBehaviour
     }
     void Update()
     {
-        if (isStop)
+        if (isSetPath)
         {
+            _isTransitioning = Vector3.Distance(transform.position, _location.worldPosition) > 0.05f; //0.05
+            MoveTile();
             if (isSetPath)
             {
-                _isTransitioning = Vector3.Distance(transform.position, _location.worldPosition) > 0.05f; //0.05
-                MoveTile();
-                if (isSetPath)
-                {
-                    DoTransition();
-                }
+                DoTransition();
             }
         }
+        if (!isSetPath && stopBeforeTarget)
+            FaceTarget();
     }
 
     void MoveTile()
@@ -52,20 +52,31 @@ public class AnimalMover : MonoBehaviour
         if (timer <= moveDelay)
             return;
 
+
         transform.position = Vector3.Lerp(transform.position, _location.worldPosition, moveSpeed * Time.deltaTime);
         if ((transform.position - _location.worldPosition) != Vector3.zero)
         {
             transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.LookRotation(_location.worldPosition - transform.position), turnSpeed * Time.deltaTime);
         }
+
+
         if (_path.Count == 0 && Vector3.Distance(transform.position, _location.worldPosition) <= 0.05f)
             isSetPath = false;
     }
 
-    public void SetPathToTarget(Tile targetTile)
+    void FaceTarget()
     {
+        transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.LookRotation(_targetInteract.worldPosition - transform.position), turnSpeed * Time.deltaTime);
 
+        if (Quaternion.Angle(transform.rotation, Quaternion.LookRotation(_targetInteract.worldPosition - transform.position)) <= 0.01f)
+            stopBeforeTarget = false;
+
+    }
+    public void SetPathToTarget(Tile targetTile, bool stopBeforeTarget)
+    {
         _path.Clear();
 
+        this.stopBeforeTarget = stopBeforeTarget;
         Vector3 start = transform.position;
         Vector3 target = targetTile.worldPosition;
         Vector3 direction = (target - start).normalized;
@@ -75,15 +86,26 @@ public class AnimalMover : MonoBehaviour
         {
             currentLocation += direction;
             Tile currentTile = Tile.GetTileAt(currentLocation);
-            //Debug.Log(Vector3.Distance(currentLocation, target));
             if (!_path.Contains(currentTile))
             {
-                _path.Enqueue(currentTile);
+                if(currentTile.tilePosition != targetTile.tilePosition || !stopBeforeTarget)
+                    _path.Enqueue(currentTile);
             }
         }
-        _path.Enqueue(targetTile);
-        isSetPath = true;
-        //Debug.Log(targetTile.worldPosition);
+
+        if(!stopBeforeTarget)
+        {
+            if(!_path.Contains(targetTile))
+            {
+                _path.Enqueue(targetTile);
+            }
+        }
+
+        if (stopBeforeTarget)
+            _targetInteract = targetTile;
+
+        if(_path.Count != 0)
+            isSetPath = true;
     }
 
 
