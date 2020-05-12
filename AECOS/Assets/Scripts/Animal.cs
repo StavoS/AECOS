@@ -11,13 +11,15 @@ public enum State
 }
 public class Animal : MonoBehaviour
 {
-    public float sensorDistance = 10f;
-
     public float timeDeathByStarve = 100f;
     public float timeDeathByThirst = 100f;
 
     public float thirst = 0f;
     public float starve = 0f;
+
+    public int timeLived = 0;
+    public float pregnantTime = 0;
+    public float TimeTilBirth = 10f;
 
     public State act;
 
@@ -33,24 +35,31 @@ public class Animal : MonoBehaviour
     
     public Edible food;
     public Tile waterTile = Tile.Invalid();
-
+    public Animal mate = null;
     
     public bool isInteracting = false;
+    
+    public Genes genes;
+    public bool isMale;
+    public bool hasMate = false;
 
     void Start()
     {
+        genes = new Genes();
         mover = GetComponent<AnimalMover>();
+        isMale = genes.isMale;
     }
 
     void Update()
     {
+        currentTile = Tile.GetTileAt(transform.position);
         timer += Time.deltaTime;
         if (timer < 5f)
             return;
 
-        currentTile = Tile.GetTileAt(transform.position);
         starve += Time.deltaTime * 1 / timeDeathByStarve;
         thirst += Time.deltaTime * 1 / timeDeathByThirst;
+        timeLived += (int)Time.deltaTime;
         
         if(!isInteracting)
             ChooseNextAct();
@@ -60,10 +69,12 @@ public class Animal : MonoBehaviour
         if(starve >= 1f)
         {
             Debug.Log("Died of starvation");
+            Environment.DeathAnimal(this);
         }
         else if(thirst >= 1f)
         {
             Debug.Log("Died of thirst");
+            Environment.DeathAnimal(this);
         }
     }
 
@@ -92,7 +103,27 @@ public class Animal : MonoBehaviour
                 break;
 
             case State.SearchMate:
-                Debug.Log("MATE");
+                if (genes.isMale)
+                {
+                    if (FindMate())
+                    {
+                        MoveAnimal(true);
+                        return;
+                    }
+                    _targetTile = Environment.GetNextRandomTile(currentTile);
+                    MoveAnimal(false);
+                }
+                else if (!isInteracting){
+                    _targetTile = Environment.GetNextRandomTile(currentTile);
+                    MoveAnimal(false);
+                }
+                else{
+                    if(Tile.Distance(currentTile, mate.currentTile) <= 1.505)
+                    {
+                        _targetTile = mate.currentTile;
+                        MoveAnimal(true);
+                    }
+                }
                 break;
 
             case State.Dead:
@@ -104,6 +135,11 @@ public class Animal : MonoBehaviour
 
     public void ChooseNextAct()
     {
+        if(genes.reproductiveUrge > starve && genes.reproductiveUrge > thirst)
+        {
+            act = State.SearchMate;
+            return;
+        }
         if (starve >= thirst)
         {
             act = State.SearchFood;
@@ -124,7 +160,7 @@ public class Animal : MonoBehaviour
         if (food == null)
         {
             isInteracting = false;
-            food = Environment.GetNearbyGrass(currentTile, sensorDistance);
+            food = Environment.GetNearbyGrass(currentTile, genes.sensorDistance);
             
             _targetTile = Environment.GetNextRandomTile(currentTile);
            
@@ -158,7 +194,7 @@ public class Animal : MonoBehaviour
     {
         if (waterTile == Tile.Invalid())
         {
-            waterTile = Environment.FindClosesetVisibleWater(currentTile, sensorDistance);
+            waterTile = Environment.FindClosesetVisibleWater(currentTile, genes.sensorDistance);
         }
 
         if(waterTile != Tile.Invalid())
@@ -186,4 +222,48 @@ public class Animal : MonoBehaviour
         return false;
     }
 
+    public bool FindMate()
+    {
+        if(mate == null)
+            mate = Environment.GetClosesetAnimalBySpieces(this, genes.sensorDistance);
+
+        if (mate == null)
+            return false;
+
+        if(!mate.genes.isMale && !mate.hasMate && mate.act == State.SearchMate){
+            if (!isInteracting){
+                MateFound();
+            }
+            _targetTile = mate.currentTile;
+            return true;
+        }
+        else if(mate.genes.isMale)
+        {
+            mate = null;
+            return false;
+        }
+        return true;
+    }
+
+    public void MateFound()
+    {
+        bool accepted = mate.RequestMate(this);
+        
+        if (accepted){
+            isInteracting = true;
+            hasMate = true;
+            _targetTile = mate.currentTile;
+        }
+    }
+
+    public bool RequestMate(Animal animal)
+    {
+        mate = animal;
+        isInteracting = true;
+        hasMate = true;
+        //_targetTile = animal.currentTile;
+        mover.SetNewFacing(mate.currentTile);
+
+        return true;
+    }
 }

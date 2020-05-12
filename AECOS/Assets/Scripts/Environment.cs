@@ -14,13 +14,15 @@ public class Environment : MonoBehaviour
 
     public float timer = 0f;
     private bool isMeshBuilt = false;
-    public float numGrass = 20f;
 
+    public float numGrass = 20f;
+    public float numAnimals = 10f;
     
     private TileMap tileMap;
     private static TileMapData mapData;
 
     private static Tile[] map;
+    private static List<Tile> walkableTileMap;
     private static Dictionary<Tile, List<Tile>> walkableNeighborsMap;
 
     public static List<Edible> edibles;
@@ -33,6 +35,7 @@ public class Environment : MonoBehaviour
         edibles = new List<Edible>();
         tileMap = GetComponent<TileMap>();
         walkableNeighborsMap = new Dictionary<Tile, List<Tile>>();
+        walkableTileMap = new List<Tile>();
     }
     void Update()
     {
@@ -52,21 +55,27 @@ public class Environment : MonoBehaviour
     {
         random = new System.Random();
         map = new Tile[size_x * size_z];
+
         for (int i = 0; i < size_x; i++)
         {
             for (int j = 0; j < size_z; j++)
             {
                 map[i * size_x + j] = Tile.GetTileAt(new Vector3(i, 0, j), map_data.GetTileType(i, j));    //multiplied by tilesize
                 walkableNeighborsMap.Add(map[i * size_x + j], GetWalkableNeighbors(map[i * size_x + j]));
+                if(map[i * size_x + j].type != 0)
+                {
+                    walkableTileMap.Add(map[i * size_x + j]);
+                }
             }
         }
 
         SpawnGrassRandomly();
+        SpawnAnimals();
     }
 
     private void SpawnGrassRandomly()
     {
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < numGrass; i++)
         {
             Vector3 randomPosition = new Vector3(Random.Range(0, size_x) + 0.5f, 0, Random.Range(0, size_z) + 0.5f);
             foreach (Tile tile in map)
@@ -77,6 +86,16 @@ public class Environment : MonoBehaviour
                     edibles.Add(go.GetComponent<Edible>());
                 }
             }
+        }
+    }
+
+    private void SpawnAnimals()
+    {
+        for (int i = 0; i < numAnimals; i++)
+        {
+            Vector3 randPos = walkableTileMap[Random.Range(0, walkableTileMap.Count - 1)].worldPosition;
+            GameObject go = Instantiate(animalPrefab, randPos, Quaternion.identity);
+            animals.Add(go.GetComponent<Animal>());
         }
     }
 
@@ -104,6 +123,12 @@ public class Environment : MonoBehaviour
     {
         edibles.Remove(grass);
         Destroy(grass.gameObject);
+    }
+
+    public static void DeathAnimal(Animal animal)
+    {
+        animals.Remove(animal);
+        Destroy(animal.gameObject);
     }
 
     private List<Tile> GetWalkableNeighbors(Tile tile)
@@ -212,4 +237,31 @@ public class Environment : MonoBehaviour
         return newTile;
     }
 
+    public static Animal GetClosesetAnimalBySpieces(Animal current, float maxDistance)
+    {
+        float minDistance = maxDistance;
+        Animal closestAnimal = null;
+        foreach(Animal animal in animals)
+        {
+            float animalDist = Tile.Distance(animal.currentTile, current.currentTile);
+
+            if (animalDist != 0)
+            {
+                if (animalDist <= maxDistance && !animal.isMale)
+                {
+                    if (minDistance >= animalDist)
+                    {
+                        minDistance = animalDist;
+                        closestAnimal = animal;
+                    }
+                }
+            }
+        }
+        return closestAnimal;
+    }
+
+    public static void AddAnimals()
+    {
+
+    }
 }
