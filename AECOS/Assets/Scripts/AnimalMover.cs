@@ -13,10 +13,12 @@ public class AnimalMover : MonoBehaviour
     private Queue<Tile> _path;
     private Tile _location;
     private Tile _targetInteract;
+    private Tile _faceTile;
 
     private bool _isTransitioning;
     private bool isSetPath = false;
     public bool stopBeforeTarget = false;
+    public bool isFacingProccess = false;
 
     void Start()
     {
@@ -36,6 +38,12 @@ public class AnimalMover : MonoBehaviour
         }
         if (!isSetPath && stopBeforeTarget)
             FaceTarget();
+
+        if(isFacingProccess)
+        {
+            FaceProccess();
+        }
+
     }
 
     void MoveTile()
@@ -66,12 +74,36 @@ public class AnimalMover : MonoBehaviour
 
     void FaceTarget()
     {
-        transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.LookRotation(_targetInteract.worldPosition - transform.position), turnSpeed * Time.deltaTime);
+        if ((transform.position - _targetInteract.worldPosition) != Vector3.zero){
+            transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.LookRotation(_targetInteract.worldPosition - transform.position), turnSpeed * Time.deltaTime);
+        }
+        else {
+            stopBeforeTarget = false;
+            return;
+        }
 
         if (Quaternion.Angle(transform.rotation, Quaternion.LookRotation(_targetInteract.worldPosition - transform.position)) <= 0.01f)
             stopBeforeTarget = false;
 
     }
+
+    public void SetNewFacing(Tile faceTile)
+    {
+        _faceTile = faceTile;
+        isFacingProccess = true;
+    }
+
+    private void FaceProccess()
+    {
+        if ((transform.position - _faceTile.worldPosition) != Vector3.zero)
+            transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.LookRotation(_faceTile.worldPosition - transform.position), turnSpeed * Time.deltaTime);
+
+        if (Quaternion.Angle(transform.rotation, Quaternion.LookRotation(_faceTile.worldPosition - transform.position)) <= 0.01f){
+            isFacingProccess = false;
+            _faceTile = null;
+        }
+    }
+
     public void SetPathToTarget(Tile targetTile, bool stopBeforeTarget)
     {
         _path.Clear();
